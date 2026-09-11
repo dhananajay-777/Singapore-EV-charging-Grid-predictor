@@ -1,0 +1,2 @@
+sampled_at,feed_updated,stations,chargers,connectors,available,in_use,blank_status,utilisation_pct,ac_connectors,ac_in_use,ac_utilisation_pct,dc_connectors,dc_in_use,dc_utilisation_pct,carparks_reporting,car_lots,car_lots_available,car_lots_occupied,car_occupancy_pct,ev_feed,carpark_feed
+2026-09-11T17:04:34,2026-09-11 17:00:00,2755,8996,11429,9216,2213,291,19.4,9889,1824,18.4,1540,389,25.3,1999,706525,488019,218506,30.9,ok,ok
