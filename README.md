@@ -7,7 +7,8 @@ workbooks once a day. Everything else here is setup.
 
 | If you want to | Read |
 |---|---|
-| Run it on GitHub so your laptop can be shut | `GITHUB_SETUP.md` |
+| Build the workbook on this PC, now | `python run_local.py`, and the next section |
+| Run collection on GitHub so your laptop can be shut | `GITHUB_SETUP.md` |
 | Run it on your own PC | `SCHEDULING.md`, then `setup_windows_tasks.ps1` |
 | Understand what gets collected and why | the rest of this file |
 
@@ -29,12 +30,67 @@ Do not run the pipeline hourly. It would hit data.gov.sg 144 times a day for
 datasets (planning areas, hawker centres, URA parking, ACRA) that change perhaps
 once a year, which is what produced the rate-limiting errors earlier.
 
-## Running them by hand
+## The everyday command
+
+```
+python run_local.py
+```
+
+That is the one to remember. It pulls whatever the GitHub runs have collected,
+takes a fresh sample so the workbook includes right now, and rebuilds the
+workbook from **every sample ever taken** — GitHub's, your earlier local runs,
+and the one just taken. Run it before you sit down to analyse anything.
+
+| Flag | Effect |
+|---|---|
+| `--no-pull` | skip the git pull (offline, or no repo) |
+| `--no-fetch` | rebuild only, do not call the APIs |
+| `--history-days N` | row-level window in the workbook (default 30 locally) |
+| `--replay` | rebuild the whole CSV store from the raw JSON snapshots |
+| `--full` | also run the daily pipeline: both joins, seven workbooks |
+
+### Why the workbook is built here and not on GitHub
+
+An `.xlsx` is a zip. Git cannot diff it, so every change stores a whole new
+copy. Measured at full scale the utilisation workbook is 2 MB without
+row-level history and 9 MB with three days of it — committed hourly that runs
+to gigabytes, and GitHub starts refusing pushes long before the project ends.
+
+So the split is: **git holds the CSVs, this machine builds the workbooks.** The
+CSVs are text, they compress and diff, and a month of them is about 70 MB.
+`output/` is gitignored for the same reason a `build/` directory usually is —
+it is derived, and `run_local.py` reproduces it in seconds.
+
+It also removes a collision. GitHub's daily run and your local run would
+otherwise both write `output/utilisation/utilisation_log.xlsx`, and every
+`git pull` after a local build would stop on a binary conflict that cannot be
+merged.
+
+If you want a workbook without building one, every Actions run publishes them
+as artifacts. `GITHUB_SETUP.md` section 6.
+
+### `--replay`, and why the raw JSON is kept
+
+Every sample is saved as gzipped JSON exactly as the API returned it, under
+`data/raw/`. That is the audit trail, and `--replay` rebuilds the entire CSV
+store from it.
+
+Two things this buys you. If a CSV is ever damaged, you recover without having
+lost an hour of collection. And if you add a derived column later, you can
+recompute it across all history rather than having it start from today — the
+numbers come from source, not from a patch.
+
+Replay moves the old store aside as `data/utilisation.before-replay-<stamp>`
+rather than deleting it, and it is idempotent: running it twice gives the same
+store, not a doubled one.
+
+## Running the pieces by hand
 
 ```
 python sg_utilisation_logger.py              # take one sample now
 python sg_utilisation_logger.py --status     # what has been collected so far
 python sg_utilisation_logger.py --rebuild-only   # workbook from existing CSV, no API call
+python sg_utilisation_logger.py --rebuild-only --history-days 14   # longer row-level window
 python sg_ev_carpark_pipeline.py             # all seven workbooks
 python sg_ev_carpark_pipeline.py --no-outer  # inner join only
 ```
@@ -96,6 +152,35 @@ instead of 2 GB, with nothing lost.
 
 `Latest connectors` in the workbook is that join already done: all 23 columns
 the pipeline produces, for the most recent sample.
+
+### What accumulates and what does not
+
+This is the part that trips people up. Nothing is ever thrown away, but not
+every sheet is a time series.
+
+| Sheet | Behaviour |
+|---|---|
+| `Network history` | One row per sample, the whole period |
+| `Station history` | One row per sample per station, the last 21 days |
+| `Carpark history` | One row per sample per carpark, the last 21 days |
+| `Station daily`, `Carpark daily` | Daily averages, the whole period |
+| `Hourly profile` | Averaged by hour of day, the whole period |
+| `Data quality` | One row per check per sample, the whole period |
+| `Run history`, `Town history` (combined workbooks) | One row per run, appended |
+| `Latest connectors`, `Latest stations`, `Latest carparks` | **The most recent sample only, deliberately** |
+| `Matched stations`, `Matched connectors` | Current state, replaced each run |
+
+If a `Latest` sheet shows one moment in time, that is correct — the earlier
+samples are in `Station history` and in the daily averages. And if
+`Network history` shows two rows after two runs, that is also correct: it gains
+one row per sample, so it only looks like a series after a few dozen.
+
+Full history lives in `data/utilisation` as CSV, which has no row limit. The
+workbook carries three days at row level by default. Measured at 2,755
+stations: three days is 198k rows and 9 MB, a week is 463k rows and 21 MB, and
+a complete series passes Excel's 1,048,576-row cap in about fifteen days.
+`--history-days N` changes the window; `--history-days 0` leaves the two
+history sheets out and keeps the file near 2 MB.
 
 ## Data integrity
 

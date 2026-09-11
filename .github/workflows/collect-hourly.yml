@@ -18,16 +18,17 @@ concurrency:                  # never let two runs overlap on the same files
 jobs:
   sample:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
 
       - name: Install
-        run: pip install --quiet requests
+        run: pip install --quiet requests pandas openpyxl
 
       - name: Sample the feeds
         env:
@@ -35,6 +36,29 @@ jobs:
           TZ: Asia/Singapore
         run: python sg_utilisation_logger.py
 
+      # Rebuilt from every CSV collected so far, not just this sample, so the
+      # workbook grows rather than being replaced.
+      #
+      # --history-days 0 leaves out the row-level history sheets, which keeps
+      # this copy near 2 MB. It is published as an artifact rather than
+      # committed: an .xlsx is a binary, so git stores a whole new copy every
+      # time it changes, and committing even a small one 24 times a day runs to
+      # gigabytes over a project. The repo copy is refreshed once a day by
+      # build-daily.yml, with the history sheets included.
+      - name: Refresh the workbook
+        env:
+          TZ: Asia/Singapore
+        run: python sg_utilisation_logger.py --rebuild-only --history-days 0
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: utilisation-latest
+          path: output/utilisation/*.xlsx
+          retention-days: 1
+          overwrite: true
+
+      # Only data/ is committed. The CSVs are text, they compress and diff
+      # well, and they are the record the workbook is rebuilt from.
       - name: Commit
         run: |
           git config user.name  "ev-collector"

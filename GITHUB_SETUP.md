@@ -128,8 +128,12 @@ repository; press the green button.
 You will see two workflows:
 
 - **Collect hourly** runs `sg_utilisation_logger.py` at five past every hour.
+  It appends the new rows, rebuilds the utilisation workbook from *everything*
+  collected so far, and publishes it as an artifact you can download straight
+  away. It commits the data rows, not the workbook — see below.
 - **Build workbooks daily** runs `sg_ev_carpark_pipeline.py` at 18:10 Singapore
-  time and rebuilds the utilisation workbook.
+  time — both joins, all seven workbooks — then rebuilds the utilisation
+  workbook with row-level history and commits the lot to the repo.
 
 Test the hourly one now rather than waiting:
 
@@ -143,6 +147,33 @@ workflows not enabled.
 
 Then do the same for **Build workbooks daily**. It takes two to three minutes.
 
+### Why the hourly run publishes the workbook instead of committing it
+
+You get a freshly rebuilt workbook every hour either way. The difference is
+where it lands, and the reason is git rather than taste.
+
+An `.xlsx` is a zip. Git cannot diff it, so every change stores a whole new
+copy. Measured at full scale — 2,755 stations, 11,429 connectors — the
+utilisation workbook is about 2 MB without row-level history and 9 MB with
+three days of it. Committed 24 times a day, the small one alone reaches
+roughly 3 GB over a six-week project, and GitHub starts refusing pushes well
+before that. The CSVs under `data/` are text: they compress, they diff, and a
+month of them is about 70 MB.
+
+So the hourly run commits the rows and publishes the workbook as an artifact,
+and the daily run commits the workbook once. In practice:
+
+| I want | Where to get it |
+|---|---|
+| The workbook as of the last hour, no tools | Actions, newest **Collect hourly** run, `utilisation-latest` artifact |
+| All seven workbooks, daily | Actions, newest **Build workbooks daily** run, `workbooks` artifact |
+| The full history, row level, no limits | `python run_local.py` on your PC |
+| The raw rows to analyse yourself | `data/utilisation/*.csv.gz`, committed hourly |
+
+`output/` is gitignored, so no workbook is committed by either workflow. That
+is deliberate: it keeps binaries out of git, and it stops your locally built
+workbook from colliding with a committed one on every `git pull`.
+
 ### A caveat about GitHub's clock
 
 GitHub's scheduler is best-effort. A run can be delayed ten or twenty minutes
@@ -154,12 +185,24 @@ timestamp. It would not be fine if you needed exact hourly spacing.
 
 ## 6. Getting the latest output
 
-**Option A: download without git.** In the repository, go to **Actions**, click
-the most recent **Build workbooks daily** run, scroll to **Artifacts** at the
-bottom, and download `workbooks`. It is a zip of every `.xlsx`, kept for 30 days.
+**Option A: download without git.** Go to **Actions**, then either:
 
-**Option B: browse to one file.** Navigate to `output/combined/` in the
-repository, click `ev_carpark_combined_150m.xlsx`, then the **Download** button.
+- **Collect hourly**, newest run, **Artifacts** → `utilisation-latest`. The
+  utilisation workbook as of that hour. Replaced every hour.
+- **Build workbooks daily**, newest run, **Artifacts** → `workbooks`. A zip of
+  all seven `.xlsx` files, kept 30 days.
+
+**Option B: build it yourself, with everything.** On your PC, in the project
+folder:
+
+```
+python run_local.py
+```
+
+Pulls what GitHub has collected, takes a fresh sample, and rebuilds the
+workbook from every sample ever taken. This is the one to use when you sit
+down to analyse — it is the only route that gives you the full history at
+row level, with no size limit imposed by what git can carry.
 
 **Option C: pull everything to your PC.** Once, to get a copy:
 
@@ -205,8 +248,30 @@ To avoid it entirely, copy a workbook somewhere else before opening it.
 | `output/context/datagov_context.xlsx` | The six data.gov.sg reference datasets |
 
 Every one keeps the same filename, so each run refreshes the file rather than
-leaving a new one. The combined pair also accumulates `Run history` and
-`Town history` sheets across runs.
+leaving a new one. None of them are committed — they arrive as Actions
+artifacts, or you build them with `python run_local.py`.
+
+### Which sheets grow, and which show only now
+
+Worth knowing before you open anything, because half the sheets are
+deliberately snapshots:
+
+| Sheet | Behaviour |
+|---|---|
+| `Network history` | One row per sample, the whole period |
+| `Station history` | One row per sample per station, the last 21 days |
+| `Carpark history` | One row per sample per carpark, the last 21 days |
+| `Station daily`, `Carpark daily` | Daily averages, the whole period |
+| `Hourly profile` | Averaged by hour of day, the whole period |
+| `Run history`, `Town history` | One row per pipeline run, appended |
+| `Latest connectors` / `stations` / `carparks` | **Most recent sample only** |
+| `Matched stations`, `Matched connectors` | Current state, replaced each run |
+
+So a `Latest` sheet showing a single moment is correct — those samples are kept
+in `Station history` and in the daily averages, not lost. And `Network history`
+holding two rows after two runs is also correct: it gains one row per sample.
+It starts looking like a time series after a day or so, and the overnight
+pattern the fault rule needs takes about 48 hours.
 
 Full hourly history lives in `data/utilisation` as CSV, which has no row limit.
 The workbook holds the latest sample plus daily averages, because at 11,429
@@ -283,6 +348,91 @@ any commit restarts the clock.
 
 ---
 
+## 9b. Updating the scripts on GitHub
+
+When you have a new version of a script or workflow (like this one), replace
+the files and push. In PowerShell, in your project folder:
+
+```
+git pull
+```
+
+Do this **first, every time.** The scheduled runs have been committing data
+while you were away, and pulling first avoids a conflict.
+
+Now copy the new files over the old ones — overwrite
+`sg_utilisation_logger.py`, `sg_ev_carpark_pipeline.py`, `README.md`,
+`GITHUB_SETUP.md` and the two files in `.github/workflows/`. Then:
+
+```
+git status
+```
+
+Read what it lists. You should see only the files you meant to change. Then:
+
+```
+git add .
+git commit -m "hourly workbook refresh, row-level history sheets"
+git push
+```
+
+The change is live immediately — the next scheduled run uses the new code. You
+do not need to re-add the `LTA_KEY` secret or re-enable anything; both survive
+a push.
+
+To check it took effect, go to **Actions**, run **Collect hourly** manually,
+and confirm the run now has a **Refresh the workbook** step.
+
+### If the push is rejected
+
+```
+ ! [rejected]  main -> main (fetch first)
+```
+
+That means a scheduled run committed while you were editing. Fix:
+
+```
+git pull --rebase
+git push
+```
+
+If `git pull --rebase` stops on a conflict in a data or output file, your local
+copy does not matter — take the one from GitHub and carry on:
+
+```
+git checkout --theirs output/ data/
+git add output/ data/
+git rebase --continue
+git push
+```
+
+---
+
+## 9c. If you already pushed workbooks before this change
+
+`output/` is now gitignored, but git keeps tracking files it was already
+tracking. Untrack them once, without deleting your local copies:
+
+```
+git rm -r --cached output
+git commit -m "stop tracking built workbooks"
+git push
+```
+
+`--cached` is the important part: it removes them from git, not from your
+disk. From then on `git status` ignores that folder, and the collision
+between GitHub's copy and your locally built one is gone.
+
+To confirm:
+
+```
+git status --porcelain
+```
+
+Nothing under `output/` should be listed.
+
+---
+
 ## 10. The git commands you actually need
 
 | Command | What it does |
@@ -330,9 +480,9 @@ Roughly what accumulates per month of hourly collection:
 | `data/utilisation/fact` | about 60 MB |
 | `data/utilisation/dim` | about 11 MB |
 | `data/raw` gzipped snapshots | about 175 MB |
-| Workbooks in `output/` | about 25 MB of churn |
+| Workbooks | nothing — `output/` is gitignored |
 
-Around 270 MB a month, so roughly 400 MB over a six-week project. That is fine
+Around 250 MB a month, so roughly 370 MB over a six-week project. That is fine
 for GitHub, which starts complaining above a few GB. Raw snapshots older than 45
 days are deleted automatically; change that with `--keep-days`.
 

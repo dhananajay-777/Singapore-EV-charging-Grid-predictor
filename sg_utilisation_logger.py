@@ -493,9 +493,46 @@ def _load(folder, pattern):
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
-def rebuild_workbook():
-    """One file, rewritten in place. The latest sample at full grain, history
-    aggregated so every sheet stays inside Excel's row limit."""
+XL_MAX_ROWS = 1_000_000        # Excel's hard cap is 1,048,576 including header
+HISTORY_DAYS = 3               # days of row-level history carried in the workbook.
+                               # Measured at 2,755 stations: 3 days is 198k rows
+                               # and 9 MB, a week is 463k rows and 21 MB, three
+                               # weeks blows past Excel's cap. Override with
+                               # --history-days; 0 leaves the history sheets out
+                               # and keeps the file near 2 MB.
+
+
+def _recent(frame, days=HISTORY_DAYS, cap=XL_MAX_ROWS):
+    """Row-level history for the workbook: the last `days` of samples, newest
+    first, trimmed to `cap` rows if that is still too many.
+
+    The CSVs under data/utilisation keep everything. This is only the slice
+    that fits in a spreadsheet, because at 2,755 stations an hour a full
+    station series passes Excel's row limit in about fifteen days."""
+    if frame.empty or "sampled_at" not in frame.columns:
+        return frame, ""
+    ts = frame["sampled_at"].astype(str)
+    newest = ts.max()
+    if len(newest) >= 10:
+        from datetime import date, timedelta
+        try:
+            y, m, d = int(newest[0:4]), int(newest[5:7]), int(newest[8:10])
+            cutoff = (date(y, m, d) - timedelta(days=days - 1)).isoformat()
+            frame = frame[ts >= cutoff]
+        except ValueError:
+            pass
+    out = frame.sort_values("sampled_at", ascending=False)
+    note = ""
+    if len(out) > cap:
+        note = (f"trimmed to the newest {cap:,} rows of {len(out):,}; "
+                f"the CSVs under data/utilisation hold the rest")
+        out = out.head(cap)
+    return out, note
+
+
+def rebuild_workbook(history_days=HISTORY_DAYS):
+    """One file, rewritten in place. The latest sample at full grain, row-level
+    history for the recent window, and daily averages for the whole period."""
     try:
         import pandas as pd
     except ImportError:
@@ -521,6 +558,7 @@ def rebuild_workbook():
         return frame[frame[col] == frame[col].max()].drop(columns=[col])
 
     sheets = {}
+    trimmed_stn = trimmed_cpk = ""
     if not net.empty:
         sheets["Network history"] = net.sort_values("sampled_at")
 
@@ -550,6 +588,10 @@ def rebuild_workbook():
 
         s = f_stn.copy()
         s["date"] = s["sampled_at"].astype(str).str.slice(0, 10)
+        hist, trimmed_stn = _recent(f_stn, days=history_days)
+        if history_days and not hist.empty:
+            sheets["Station history"] = hist
+
         sheets["Station daily"] = (
             s.groupby(["date", "location_id"], dropna=False)
              .agg(samples=("connectors", "size"),
@@ -583,6 +625,9 @@ def rebuild_workbook():
 
         car = f_cpk[f_cpk["lot_type_code"] == "C"].copy()
         if not car.empty:
+            chist, trimmed_cpk = _recent(car, days=history_days)
+            if history_days and not chist.empty:
+                sheets["Carpark history"] = chist
             car["date"] = car["sampled_at"].astype(str).str.slice(0, 10)
             sheets["Carpark daily"] = (
                 car.groupby(["date", "carpark_number"], dropna=False)
@@ -595,13 +640,19 @@ def rebuild_workbook():
     if not qual.empty:
         sheets["Data quality"] = qual.sort_values("sampled_at", ascending=False)
 
-    sheets["Notes"] = pd.DataFrame({"note": [
-        "Rebuilt in place by --workbook. Same filename every time.",
-        "Latest sheets hold the most recent sample at full grain, with the "
-        "descriptive columns joined on from the daily dimension snapshot.",
-        "Full history lives in data/utilisation as CSV, which has no row limit. "
-        "Station daily and Carpark daily are averaged per day so the workbook "
-        "stays inside Excel's 1,048,576-row cap.",
+    notes = [
+        "Rebuilt in place every run. Same filename every time.",
+        "WHAT ACCUMULATES: Network history (one row per sample, the whole "
+        "period), Station history and Carpark history (row level, the last "
+        f"{HISTORY_DAYS} days), Station daily, Carpark daily and Hourly "
+        "profile (averaged, the whole period), Data quality.",
+        "WHAT IS A SNAPSHOT: the three Latest sheets. They show the most "
+        "recent sample only, on purpose. Earlier samples are not lost - they "
+        "are in Station history and in the daily averages.",
+        "Full history lives in data/utilisation as CSV, which has no row "
+        f"limit. The workbook carries {HISTORY_DAYS} days at row level "
+        "because at 2,755 stations an hour a complete series passes Excel's "
+        "1,048,576-row cap in about fifteen days.",
         "utilisation_pct counts any connector not reporting status 1 as in use. "
         "blank_status records how many reported nothing, so the stricter "
         "reading can be recovered without re-collecting.",
@@ -610,7 +661,12 @@ def rebuild_workbook():
         "Data quality has one row per check per sample. Filter outcome = warn.",
         "The context layers (planning area, hawker, URA, ACRA) are not fetched "
         "here. The daily pipeline adds them.",
-    ]})
+    ]
+    if trimmed_stn:
+        notes.append(f"Station history {trimmed_stn}.")
+    if trimmed_cpk:
+        notes.append(f"Carpark history {trimmed_cpk}.")
+    sheets["Notes"] = pd.DataFrame({"note": notes})
 
     DIR_OUT.mkdir(parents=True, exist_ok=True)
     tmp = WORKBOOK.with_name(f".{WORKBOOK.stem}.writing.xlsx")
@@ -733,6 +789,10 @@ def main():
                     help="do not keep the raw JSON snapshots")
     ap.add_argument("--keep-days", type=int, default=45,
                     help="delete raw snapshots older than this (0 keeps all)")
+    ap.add_argument("--history-days", type=int, default=HISTORY_DAYS,
+                    help="days of row-level station and carpark history to put "
+                         "in the workbook (0 leaves those sheets out and keeps "
+                         "the file small; the CSVs always keep everything)")
     args = ap.parse_args()
 
     if args.status:
@@ -740,7 +800,7 @@ def main():
         return
 
     if args.rebuild_only:
-        rebuild_workbook()
+        rebuild_workbook(args.history_days)
         return
 
     for d in (DIR_RAW_EV, DIR_RAW_CP, DIR_UTIL, DIR_FACT, DIR_DIM, DIR_OUT):
@@ -854,7 +914,7 @@ def main():
             print(f"  pruned {gone} raw snapshots older than {args.keep_days} days")
 
     if args.workbook:
-        rebuild_workbook()
+        rebuild_workbook(args.history_days)
 
 
 if __name__ == "__main__":

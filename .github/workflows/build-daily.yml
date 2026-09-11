@@ -41,12 +41,16 @@ jobs:
         env:
           LTA_KEY: ${{ secrets.LTA_KEY }}
           TZ: Asia/Singapore
-        run: python sg_ev_carpark_pipeline.py
+        run: python sg_ev_carpark_pipeline.py --no-archive
 
+      # The committed copy, with three days of row-level history. That is
+      # about 9 MB at full scale; a week would be 21 MB and a month of daily
+      # commits at that size is most of a gigabyte. Raise --history-days if
+      # you want a longer window in the file and can live with the size.
       - name: Rebuild the utilisation workbook
         env:
           TZ: Asia/Singapore
-        run: python sg_utilisation_logger.py --rebuild-only || true
+        run: python sg_utilisation_logger.py --rebuild-only --history-days 3
 
       # a copy you can download without cloning anything
       - uses: actions/upload-artifact@v4
@@ -55,11 +59,14 @@ jobs:
           path: output/**/*.xlsx
           retention-days: 30
 
+      # Only data/ - output/ is gitignored, because workbooks are binaries
+      # that git cannot diff and that run_local.py rebuilds on demand. The
+      # artifact above is how you get them without building.
       - name: Commit
         run: |
           git config user.name  "ev-collector"
           git config user.email "ev-collector@users.noreply.github.com"
-          git add data/ output/
+          git add data/
           if git diff --staged --quiet; then
             echo "nothing changed"
             exit 0

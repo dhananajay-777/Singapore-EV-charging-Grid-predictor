@@ -30,11 +30,27 @@ data/temp/
 *.schema-*
 
 # ---------------------------------------------------------------------------
+# BUILT WORKBOOKS. Not committed, on purpose.
+# ---------------------------------------------------------------------------
+# An .xlsx is a zip: git cannot diff it, so every change stores a whole new
+# copy. They are also derived - run_local.py rebuilds any of them from the
+# CSVs in seconds - and git should hold sources, not build output.
+#
+# The real reason it matters here: GitHub's daily run and your local run both
+# write output/utilisation/utilisation_log.xlsx. If that file were tracked,
+# every git pull after a local build would collide on a binary that cannot be
+# merged. Ignoring it removes the collision entirely.
+#
+# You can still get workbooks without building them: Actions publishes them as
+# artifacts on every run. See GITHUB_SETUP.md section 6.
+output/
+
+# ---------------------------------------------------------------------------
 # What IS committed, for the record:
 #   data/raw/ev, data/raw/carpark    gzipped snapshots, the audit trail
-#   data/utilisation/               the hourly series
-#   output/                         the workbooks
+#   data/utilisation/               the hourly series, fact and dim
 #   *.py, *.yml, *.md               the code and the docs
+# Workbooks are NOT committed - see the block above.
 # If the repository gets uncomfortably large, the first thing to drop is
 # data/raw. Uncomment the next line to stop committing it.
 # data/raw/
