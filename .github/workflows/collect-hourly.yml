@@ -1,0 +1,55 @@
+name: Collect hourly
+
+# Runs on GitHub's machines, so nothing depends on your laptop being awake.
+# Cron is UTC. Singapore is UTC+8, so ":05" here is ":05" past every hour
+# in Singapore too, because the offset is whole hours.
+on:
+  schedule:
+    - cron: "5 * * * *"
+  workflow_dispatch:          # the Run workflow button, for testing
+
+permissions:
+  contents: write             # needed to commit the new rows back
+
+concurrency:                  # never let two runs overlap on the same files
+  group: collect-hourly
+  cancel-in-progress: false
+
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install --quiet requests
+
+      - name: Sample the feeds
+        env:
+          LTA_KEY: ${{ secrets.LTA_KEY }}
+          TZ: Asia/Singapore
+        run: python sg_utilisation_logger.py
+
+      - name: Commit
+        run: |
+          git config user.name  "ev-collector"
+          git config user.email "ev-collector@users.noreply.github.com"
+          git add data/
+          # nothing changed is a normal outcome, not a failure
+          if git diff --staged --quiet; then
+            echo "no new rows"
+            exit 0
+          fi
+          git commit -m "sample $(TZ=Asia/Singapore date +'%Y-%m-%d %H:%M') SGT"
+          # another run may have pushed while this one was working
+          for attempt in 1 2 3; do
+            git pull --rebase --autostash && git push && exit 0
+            echo "push attempt $attempt failed, retrying"
+            sleep 5
+          done
+          exit 1

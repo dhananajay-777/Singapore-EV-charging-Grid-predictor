@@ -1,0 +1,42 @@
+#!/bin/sh
+# Blocks a commit that contains something key-shaped.
+#
+# .gitignore protects files NAMED like secrets. It cannot help if you paste the
+# key into a .py file while debugging and then commit it. This can.
+#
+# Install (once, from the project folder):
+#     cp tools/pre-commit .git/hooks/pre-commit
+#     chmod +x .git/hooks/pre-commit
+# On Windows, in Git Bash, the same two lines.
+#
+# To commit anyway, once:  git commit --no-verify
+
+found=0
+
+# an AccountKey or LTA_KEY assigned a long literal
+if git diff --cached -U0 | grep -nE '^\+.*(AccountKey|LTA_KEY|api_key|apikey|token|password)["'"'"']?\s*[:=]\s*["'"'"'][A-Za-z0-9+/=_-]{16,}' ; then
+  echo ""
+  echo "  ^ that looks like a credential assigned in the code."
+  found=1
+fi
+
+# a bare base64 block of the shape DataMall keys use
+if git diff --cached -U0 | grep -nE '^\+.*[A-Za-z0-9+/]{20,}={1,2}' | grep -vE '\.(xlsx|gz|png|jpg|pdf)|data:|sha256|integrity' ; then
+  echo ""
+  echo "  ^ that looks like a base64 secret."
+  found=1
+fi
+
+# a secret file sneaking in despite .gitignore
+if git diff --cached --name-only | grep -iE '(^|/)(lta_key\.txt|\.env|.*credential.*|.*secret.*)$' ; then
+  echo ""
+  echo "  ^ that file should never be committed."
+  found=1
+fi
+
+if [ "$found" = "1" ]; then
+  echo ""
+  echo "Commit blocked. Remove it, or run: git commit --no-verify"
+  exit 1
+fi
+exit 0

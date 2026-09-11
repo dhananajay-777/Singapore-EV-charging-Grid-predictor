@@ -1,0 +1,73 @@
+name: Build workbooks daily
+
+# The heavy script. Once a day is plenty: the context datasets barely change
+# and the joins take two to three minutes. 10:10 UTC is 18:10 Singapore.
+on:
+  schedule:
+    - cron: "10 10 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-daily
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install --quiet pandas requests openpyxl
+
+      # keeps the data.gov.sg context copies between runs so the API is not
+      # hammered and a rate-limited run still has yesterday's data to fall back on
+      - name: Restore context cache
+        uses: actions/cache@v4
+        with:
+          path: data/reference
+          key: ev-context-${{ github.run_id }}
+          restore-keys: ev-context-
+
+      - name: Build both joins
+        env:
+          LTA_KEY: ${{ secrets.LTA_KEY }}
+          TZ: Asia/Singapore
+        run: python sg_ev_carpark_pipeline.py
+
+      - name: Rebuild the utilisation workbook
+        env:
+          TZ: Asia/Singapore
+        run: python sg_utilisation_logger.py --rebuild-only || true
+
+      # a copy you can download without cloning anything
+      - uses: actions/upload-artifact@v4
+        with:
+          name: workbooks
+          path: output/**/*.xlsx
+          retention-days: 30
+
+      - name: Commit
+        run: |
+          git config user.name  "ev-collector"
+          git config user.email "ev-collector@users.noreply.github.com"
+          git add data/ output/
+          if git diff --staged --quiet; then
+            echo "nothing changed"
+            exit 0
+          fi
+          git commit -m "daily build $(TZ=Asia/Singapore date +'%Y-%m-%d') SGT"
+          for attempt in 1 2 3; do
+            git pull --rebase --autostash && git push && exit 0
+            echo "push attempt $attempt failed, retrying"
+            sleep 5
+          done
+          exit 1

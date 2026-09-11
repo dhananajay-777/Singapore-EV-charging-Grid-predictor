@@ -1,0 +1,40 @@
+# ---------------------------------------------------------------------------
+# SECRETS. Nothing here may ever reach the repository.
+# ---------------------------------------------------------------------------
+lta_key.txt
+*key*.txt
+*.key
+.env
+.env.*
+secrets*
+credentials*
+
+# ---------------------------------------------------------------------------
+# Local junk
+# ---------------------------------------------------------------------------
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.DS_Store
+Thumbs.db
+logs/
+data/temp/
+
+# Excel lock files. Left behind when Excel crashes, and they break the writer.
+~$*.xlsx
+.*.writing.xlsx
+
+# Working copies the scripts set aside when a file is unreadable or its header
+# changed. Useful locally, not worth committing.
+*.corrupt-*
+*.schema-*
+
+# ---------------------------------------------------------------------------
+# What IS committed, for the record:
+#   data/raw/ev, data/raw/carpark    gzipped snapshots, the audit trail
+#   data/utilisation/               the hourly series
+#   output/                         the workbooks
+#   *.py, *.yml, *.md               the code and the docs
+# If the repository gets uncomfortably large, the first thing to drop is
+# data/raw. Uncomment the next line to stop committing it.
+# data/raw/
