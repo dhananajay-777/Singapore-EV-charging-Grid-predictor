@@ -1636,3 +1636,14 @@ sampled_at,check,outcome,detail
 2026-10-09T05:11:35,carpark_rows_unique,ok,0 duplicate carpark and lot-type pairs
 2026-10-09T05:11:35,connector_count_stable,ok,11595 to 11595 connectors (0.0% change)
 2026-10-09T05:11:35,sample_is_new,ok,previous sample 2026-10-08T23:26:37
+2026-10-09T09:52:43,ev_feed_not_empty,ok,11598 connector rows
+2026-10-09T09:52:43,carpark_feed_not_empty,ok,2428 lot rows
+2026-10-09T09:52:43,connector_ids_unique,ok,no repeats
+2026-10-09T09:52:43,stations_have_coordinates,ok,0 stations without coordinates
+2026-10-09T09:52:43,coordinates_inside_singapore,ok,0 stations outside the Singapore bounding box
+2026-10-09T09:52:43,blank_status_share_normal,ok,532 of 11598 connectors blank (4.6%)
+2026-10-09T09:52:43,available_not_above_total,warn,1 carparks report more free lots than they have
+2026-10-09T09:52:43,no_negative_lots,ok,0 negative values
+2026-10-09T09:52:43,carpark_rows_unique,ok,0 duplicate carpark and lot-type pairs
+2026-10-09T09:52:43,connector_count_stable,ok,11595 to 11598 connectors (0.0% change)
+2026-10-09T09:52:43,sample_is_new,ok,previous sample 2026-10-09T05:11:35
