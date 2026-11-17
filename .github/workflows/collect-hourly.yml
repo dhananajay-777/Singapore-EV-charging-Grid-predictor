@@ -1,11 +1,13 @@
 name: Collect hourly
 
 # Runs on GitHub's machines, so nothing depends on your laptop being awake.
-# Cron is UTC. Singapore is UTC+8, so ":05" here is ":05" past every hour
+# Cron is UTC. Singapore is UTC+8, so ":23" here is ":23" past every hour
 # in Singapore too, because the offset is whole hours.
 on:
   schedule:
-    - cron: "5 * * * *"
+    # :23, not :05. GitHub delays and drops scheduled runs when load is high,
+    # and load peaks at the top of the hour; V1 got only 4-7 runs a day.
+    - cron: "23 * * * *"
   workflow_dispatch:          # the Run workflow button, for testing
 
 permissions:

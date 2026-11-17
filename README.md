@@ -138,8 +138,9 @@ Copy `lta_key.txt.example` to `lta_key.txt` and paste your DataMall key in.
 string, for the case where one gets pasted into a script; `GITHUB_SETUP.md`
 says how to install it.
 
-**The key that was hardcoded in the earlier versions of these scripts should be
-regenerated at DataMall.** Once a key has been in a file, assume it has leaked.
+The key that was hardcoded in early local copies of these scripts (never
+committed) was replaced with a new one in November 2026. The new key lives only
+in the `LTA_KEY` repository secret and in local `lta_key.txt` files.
 
 ## What comes out
 
@@ -254,3 +255,12 @@ The fault-detection rule — a connector unavailable in more than 95% of sampled
 hours across 14 days, including the small hours, is broken rather than busy —
 only works if those hours are in the data. On GitHub they always are. On a
 laptop they are exactly the hours it is asleep.
+
+## Data sources and licence
+
+Contains information from the LTA DataMall EV Charging Points API, the HDB
+carpark availability API, HDB Carpark Information, HDB Property Information,
+HDB resale flat prices, the Census of Population 2020 and URA Master Plan
+subzone boundaries, accessed between September and November 2026 from
+datamall.lta.gov.sg and data.gov.sg, which are made available under the terms
+of the [Singapore Open Data Licence version 1.0](https://data.gov.sg/open-data-licence).
