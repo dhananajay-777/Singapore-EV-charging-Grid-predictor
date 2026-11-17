@@ -1,11 +1,13 @@
 name: Collect hourly
 
 # Runs on GitHub's machines, so nothing depends on your laptop being awake.
-# Cron is UTC. Singapore is UTC+8, so ":05" here is ":05" past every hour
+# Cron is UTC. Singapore is UTC+8, so ":23" here is ":23" past every hour
 # in Singapore too, because the offset is whole hours.
 on:
   schedule:
-    - cron: "5 * * * *"
+    # :23, not :05. GitHub delays and drops scheduled runs when load is high,
+    # and load peaks at the top of the hour; V1 got only 4-7 runs a day.
+    - cron: "23 * * * *"
   workflow_dispatch:          # the Run workflow button, for testing
 
 permissions:
@@ -36,27 +38,6 @@ jobs:
           TZ: Asia/Singapore
         run: python sg_utilisation_logger.py
 
-      # Rebuilt from every CSV collected so far, not just this sample, so the
-      # workbook grows rather than being replaced.
-      #
-      # --history-days 0 leaves out the row-level history sheets, which keeps
-      # this copy near 2 MB. It is published as an artifact rather than
-      # committed: an .xlsx is a binary, so git stores a whole new copy every
-      # time it changes, and committing even a small one 24 times a day runs to
-      # gigabytes over a project. The repo copy is refreshed once a day by
-      # build-daily.yml, with the history sheets included.
-      - name: Refresh the workbook
-        env:
-          TZ: Asia/Singapore
-        run: python sg_utilisation_logger.py --rebuild-only --history-days 0
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: utilisation-latest
-          path: output/utilisation/*.xlsx
-          retention-days: 1
-          overwrite: true
-
       # Only data/ is committed. The CSVs are text, they compress and diff
       # well, and they are the record the workbook is rebuilt from.
       - name: Commit
@@ -77,3 +58,30 @@ jobs:
             sleep 5
           done
           exit 1
+
+      # Rebuilt from every CSV collected so far, not just this sample, so the
+      # workbook grows rather than being replaced.
+      #
+      # --history-days 0 leaves out the row-level history sheets, which keeps
+      # this copy near 2 MB. It is published as an artifact rather than
+      # committed: an .xlsx is a binary, so git stores a whole new copy every
+      # time it changes, and committing even a small one 24 times a day runs to
+      # gigabytes over a project. The repo copy is refreshed once a day by
+      # build-daily.yml, with the history sheets included.
+      - name: Refresh the workbook
+        continue-on-error: true
+        env:
+          TZ: Asia/Singapore
+        run: python sg_utilisation_logger.py --rebuild-only --history-days 0
+
+      # continue-on-error: a full artifact quota stopped collection on
+      # 15 Oct 2026, because this step used to run before the commit and its
+      # failure meant the sample was never saved. The data is committed
+      # first now, and a failed upload no longer fails the run.
+      - uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: utilisation-latest
+          path: output/utilisation/*.xlsx
+          retention-days: 1
+          overwrite: true

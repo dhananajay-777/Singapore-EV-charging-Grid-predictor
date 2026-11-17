@@ -52,13 +52,6 @@ jobs:
           TZ: Asia/Singapore
         run: python sg_utilisation_logger.py --rebuild-only --history-days 3
 
-      # a copy you can download without cloning anything
-      - uses: actions/upload-artifact@v4
-        with:
-          name: workbooks
-          path: output/**/*.xlsx
-          retention-days: 30
-
       # Only data/ - output/ is gitignored, because workbooks are binaries
       # that git cannot diff and that run_local.py rebuilds on demand. The
       # artifact above is how you get them without building.
@@ -78,3 +71,14 @@ jobs:
             sleep 5
           done
           exit 1
+
+      # a copy you can download without cloning anything
+      # after the commit and allowed to fail, so a full artifact quota can
+      # never cost data (that is what stopped collection on 15 Oct 2026).
+      # 7 days, not 30, to keep well inside the quota.
+      - uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: workbooks
+          path: output/**/*.xlsx
+          retention-days: 7
