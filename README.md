@@ -1,101 +1,152 @@
 # Singapore EV Charging Grid Predictor
 
-Where should Singapore add public EV chargers, and how many? This project
-answers that carpark by carpark, using live charger and carpark data I
-collected over 34 days and joined with population, housing and existing
-charger supply.
+Where should Singapore add public EV chargers? This project ranks every HDB
+carpark by how busy the chargers around it are overnight, using live charger
+and carpark data logged from the LTA and HDB feeds.
 
-It is the data layer of the **Spatial EV Charging Priority Model**, a team
-project (Vector Analytics) for the NUS MTech in Enterprise Business Analytics.
-I led data acquisition, governance and dataset creation, and co-led the
-Power BI dashboard.
-
-![Charging urgency by planning area](docs/figures/urgency_by_area.png)
-
-## Results
-
-- **Punggol and Sengkang run hottest.** Across all 34 days, their public
-  chargers average a daily peak of 77% utilisation, well ahead of every other
-  town. Tengah, a new town with only 8 stations, is already in the top four.
-  The carpark-level model in the team submission ranked the same three towns
-  first (Punggol 79.9, Sengkang 76.6, Tengah 72.5).
-- **Charging is overnight.** Utilisation peaks between midnight and 5 a.m. at
-  about 34% and drops to around 20% in the late afternoon, which points to
-  residents charging at home carparks rather than daytime visitors.
-- **EV use follows car occupancy.** Across the 173 samples the two correlate
-  at 0.85 (0.95 on the hourly profile), so a carpark's occupancy pattern is a
-  reasonable first guess at EV demand where no charger exists yet.
-- **Busy is not the same as broken.** A rule that flags connectors unavailable
-  in more than 95% of samples over 14 days, overnight included, stopped dead
-  chargers from looking like the most popular ones.
-
-![Demand by hour of day](docs/figures/hourly_profile.png)
-
-![Network-wide demand over the collection period](docs/figures/daily_demand.png)
-
-## Dashboard
+It is the data layer of **Data-Driven Spatial Priority Modelling for Public EV
+Charging Infrastructure in Singapore**, a team project (Vector Analytics) for
+EBA 5011, the Practice Module in Analytics for Business Decisions, in the NUS
+MTech in Enterprise Business Analytics.
 
 ![Power BI dashboard, Overview page](docs/figures/powerbi_overview.png)
 
-The team's Power BI dashboard, which I co-led. The Overview page puts every
-URA subzone into one of four priority tiers (from K-means on overnight
-utilisation, charger supply and nearby homes), and flags 580 HDB carparks as
-priority sites. Overnight utilisation is highest in the North-East, at 52.6%.
-Other pages cover when and where demand peaks, what drives it, which carparks
-come first, and screening of new sites.
+*The Power BI dashboard (Overview page), which I co-led. It puts HDB carparks
+into four priority tiers from K-means and shows 580 of them as priority
+sites. Other pages cover when and where demand peaks, what drives it, which
+carparks come first, and screening of new sites.*
 
-## What I built
+## My part
+
+The final report's workload table records my role as:
+
+| Stage | My role |
+|---|---|
+| Data acquisition and governance | **Lead** |
+| Data understanding, charts and Power BI dashboards | **Co-lead** |
+| Problem framing, modelling, shortlist, report and presentation | Contributor |
+
+What that meant in practice:
+
+- **Live data logging.** I built the logger and the GitHub Actions schedule
+  that polled every LTA charging connector (about 11,400) and every HDB
+  carpark's free lots, stamping both feeds with the same time. The project
+  analysis used the first 14 days (85 synchronised snapshots); I kept it
+  running to 34 days and 173 snapshots.
+- **Integration and governance.** I led the stage that turned eight open
+  datasets into one carpark-level data model: SVY21 to WGS84 conversion,
+  subzone placement by point-in-polygon, station-to-carpark matching,
+  distance counts at 300 m and 500 m, profiling, quality checks by dimension,
+  and the faulty-station rule. Teammates contributed to each of these.
+- **Dataset building.** I added 63 columns to the team workbook and built a
+  wider 327-column dataset (1,984 carparks × 85 snapshots) with a lean
+  69-column cut for clustering. See [docs/DATASET_CREATION.md](docs/DATASET_CREATION.md).
+- **Dashboard.** Co-led the Power BI dashboard above.
+- **Engineering.** Storage design, a raw-JSON audit trail, 11 automated
+  checks on every sample, and key handling that keeps the API key out of
+  the code. See [docs/MY_CONTRIBUTION.md](docs/MY_CONTRIBUTION.md).
+
+## Project findings
+
+From the final report, on 2,259 HDB carparks with a charger within 300 m:
+
+- **Overnight is the peak.** Chargers near HDB carparks are 42.7% busy
+  between midnight and 6 a.m., against 25.9% in the evening (paired t-test,
+  p < 0.001), consistent with residents charging near home.
+- **Demand is uneven.** Overnight use is 52.6% in the North-East against
+  32.9% in Central, and 48.6% at multi-storey carparks against 36.2% at
+  surface carparks.
+- **The drivers are identifiable.** Newer estates, more 4-room and larger
+  flats, and fewer chargers per home go with higher overnight use. With town
+  effects, these explain 56% of the variation (R² 0.561; held-out R² 0.57).
+- **Four priority tiers.** K-means places 580 carparks in a Priority tier,
+  where chargers are 60.5% busy overnight and supply is 8.0 chargers per
+  1,000 homes.
+- **A rule for new sites.** A depth-3 decision tree picks out Priority
+  carparks from carpark features alone with 83% accuracy on unseen carparks,
+  against a 74% baseline.
+- **Recommendation.** Pilot new chargers at 20 carparks, one per URA
+  subzone, before extending to the rest of the Priority tier.
+
+## My extension: all 34 days
+
+The report used 14 days. These charts use everything I logged, rebuilt with
+`analysis/make_figures.py`.
+
+![Charging urgency by planning area](docs/figures/urgency_by_area.png)
+
+Over 34 days, Punggol and Sengkang chargers average a daily peak of 77%,
+ahead of every other planning area. The four busiest areas are the same four
+towns the report found busiest overnight: Punggol, Sengkang, Tengah and
+Pasir Ris.
+
+![Demand by hour of day](docs/figures/hourly_profile.png)
+
+Network-wide, use holds at about 32–35% from midnight to 5 a.m. and falls to
+about 19% at 5 p.m. EV use and HDB car-lot occupancy correlate at 0.85
+across the 173 samples.
+
+![Network-wide demand over the collection period](docs/figures/daily_demand.png)
+
+## How the data flows
+
+Highlighted boxes are the stages I led or co-led.
 
 ```mermaid
 flowchart LR
-    A[LTA DataMall<br/>EV connector status] --> L[Logger<br/>GitHub Actions, 4–7×/day]
+    A[LTA DataMall<br/>EV connector status] --> L[Logger<br/>GitHub Actions, 5–7×/day]
     B[data.gov.sg<br/>HDB carpark availability] --> L
     L --> S[(Fact / dimension CSVs<br/>+ raw JSON audit trail)]
-    S --> P[Join pipeline<br/>chargers ↔ carparks at 150 / 300 m]
-    C[Population, HDB property,<br/>resale prices, LTA register,<br/>URA subzones] --> D
-    P --> D[Modelling dataset<br/>1,984 carparks × 327 columns]
-    D --> E[Lean dataset<br/>69 columns · 1,984-row model table]
-    E --> M[Team MCDA, TOPSIS,<br/>K-means, Power BI]
+    S --> W[Carpark-level data model<br/>2,272 carparks × 85 readings]
+    C[HDB property, LTA register,<br/>URA subzones, resale prices] --> W
+    W --> X[Extended dataset<br/>327 → 69 columns]
+    W --> M[Team analysis<br/>t-tests, ANOVA, regression,<br/>K-means, decision tree]
+    M --> BI[Power BI dashboard]
+    classDef mine fill:#dbe8f9,stroke:#2a78d6,stroke-width:2px,color:#0b0b0b
+    class L,S,W,X,BI mine
 ```
 
 | Piece | What it does |
 |---|---|
-| `sg_utilisation_logger.py` | Samples every EV connector (11,400+) and every HDB carpark (2,000+), runs 11 quality checks, stores the result |
+| `sg_utilisation_logger.py` | Samples every EV connector and every HDB carpark, runs 11 quality checks, stores the result |
 | `sg_ev_carpark_pipeline.py` | Matches chargers to carparks, adds six data.gov.sg context layers, writes seven workbooks |
 | `.github/workflows/` | Ran collection on GitHub so the small hours were never missed |
 | `data/` | The full archive: 173 samples, 1.99 M connector-status rows, 209 raw API snapshots per feed |
-| `analysis/make_figures.py` | Rebuilds the charts above from `data/` |
-
-The modelling dataset (168,526 rows × 327 columns, then cut to 69) is
-described step by step in [docs/DATASET_CREATION.md](docs/DATASET_CREATION.md).
+| `analysis/make_figures.py` | Rebuilds the 34-day charts from `data/` |
 
 ## Engineering decisions
 
-- **Fact/dimension split.** Writing every connector's full details every hour
-  would have been 2 GB a month. Storing only id, status and time hourly, with
-  descriptions once a day, cut it to about 70 MB with nothing lost.
+- **Fact/dimension split.** Writing every connector's full details each
+  sample would have been 2 GB a month. Storing only id, status and time per
+  sample, with descriptions once a day, cut it to about 70 MB with nothing
+  lost.
 - **Raw JSON kept for every sample.** Any CSV, or any new derived column, can
   be rebuilt from source across the full history (`run_local.py --replay`).
+- **Busy or broken.** The feed cannot tell a broken connector from one in
+  use. Stations with no free connector in any reading between 2 and 6 a.m.
+  were flagged as suspected faulty, and the 35 carparks near them were left
+  out of the model.
 - **No API key in code, ever.** The key comes from a GitHub secret or a
   gitignored file, and a pre-commit hook blocks anything key-shaped.
-- **Failures are loud and safe.** Atomic file writes, schema-change detection,
-  back-off on rate limits, and a run that aborts rather than saving an empty
-  sample.
+- **Failures are loud and safe.** Atomic file writes, schema-change
+  detection, back-off on rate limits, and a run that aborts rather than
+  saving an empty sample.
 
 ## Tech
 
 Python (pandas, requests, openpyxl, matplotlib), GitHub Actions, REST APIs
 (LTA DataMall, data.gov.sg), geospatial joins (haversine, point-in-polygon,
-SVY21 → WGS84), Excel, Power BI.
+SVY21 → WGS84), Excel data modelling, Power BI. Team analysis: hypothesis
+tests, multiple regression, K-means, decision trees.
 
 ## Repository map
 
 | Path | Contents |
 |---|---|
-| [docs/MY_CONTRIBUTION.md](docs/MY_CONTRIBUTION.md) | My part of the team project, in detail |
+| [docs/MY_CONTRIBUTION.md](docs/MY_CONTRIBUTION.md) | My part of the project, in detail |
 | [docs/DATASET_CREATION.md](docs/DATASET_CREATION.md) | Sources, joins, enrichment, column selection, validation |
 | [docs/DATA_COLLECTION.md](docs/DATA_COLLECTION.md) | How the logger and pipeline work, and the edge cases they handle |
-| [docs/V2.md](docs/V2.md) | V2: the model rebuilt on the full 34 days (in progress) |
+| [docs/V2.md](docs/V2.md) | V2: the analysis rerun on all 34 days (in progress) |
 | [docs/GITHUB_SETUP.md](docs/GITHUB_SETUP.md), [docs/SCHEDULING.md](docs/SCHEDULING.md) | Running collection on GitHub or a PC |
 
 ## Reproduce

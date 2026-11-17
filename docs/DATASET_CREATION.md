@@ -1,13 +1,28 @@
 # Dataset creation
 
-How the raw feeds in this repository became the modelling dataset the team
-scored and clustered. Written by Dhananajay, who built it.
+How the raw feeds in this repository became carpark-level datasets.
+Written by Dhananjay, who led data acquisition and governance for the
+project.
 
-The end product is one row per HDB carpark per sample, with that carpark's
-car occupancy, the utilisation of EV chargers within 300 m, and around 300
-columns describing the residents, housing value, existing charger supply and
-grid load around it. A lean 69-column cut and a one-row-per-carpark table
-were then made for scoring and clustering.
+There are two datasets, and it matters which is which:
+
+| | Team data model (used in the final report) | Extended dataset (mine) |
+|---|---|---|
+| Built by | The team, in the stage I led | Me |
+| Grain | 2,272 carparks × 85 readings = 193,120 rows | 1,984 carparks × 85 samples = 168,526 rows |
+| Columns | 72 documented, across four tables | 327, cut to 69 |
+| Used for | Hypothesis tests, regression, K-means, decision tree, Power BI | Wider feature exploration and clustering experiments |
+
+The final report's analysis ran on the team data model, not the extended
+dataset. I also added 63 columns to the team workbook (section 4). Several of
+the variables the final report relies on (time band, 14-day overnight and
+evening utilisation, the suspected-faulty flag, and homes and registered
+chargers nearby) were among them.
+
+The rest of this document describes the extended dataset: one row per HDB
+carpark per sample, with that carpark's car occupancy, the utilisation of EV
+chargers within 300 m, and around 300 columns describing residents, housing
+value, existing charger supply and grid load around it.
 
 ```
 LTA + HDB live feeds ──► utilisation log (this repo, 85 samples, 11–24 Sep)
@@ -140,19 +155,26 @@ list, so both are kept.
 Network history had a few duplicated rows from a git merge conflict during
 collection. These were dropped before joining.
 
-**Faulty versus busy.** A connector unavailable in more than 95% of sampled
-hours across 14 days, overnight included, is counted as faulty. A charger that
-never frees up at 3 a.m. is almost certainly broken, not popular. Without this
-flag, broken chargers would read as the highest-demand sites.
+**Faulty versus busy.** The logger flags a connector unavailable in more
+than 95% of sampled hours across 14 days, overnight included. The final
+report used a simpler station-level rule: no free connector in any reading
+between 02:00 and 05:59, which excluded 35 carparks. Either way the idea is
+the same: a charger that never frees up at 3 a.m. is almost certainly broken,
+not popular, and without the flag broken chargers would read as the
+highest-demand sites.
 
-### 3.3 MCDA inputs
+### 3.3 Scoring inputs from the proposal
 
-These columns feed the team's multi-criteria scoring directly. Exact formulas
-are in the data dictionary.
+The project proposal planned to rank carparks with an AHP-weighted TOPSIS
+index. These columns were built for it. After lecturer feedback, the team
+dropped TOPSIS and the EV-adoption proxy in favour of observed overnight
+utilisation and course methods (regression, K-means, a decision tree), so
+none of these columns is a model input in the final report. They remain in
+the extended dataset. Exact formulas are in the data dictionary.
 
 | Column | Meaning |
 |---|---|
-| `charging_urgency` | Mean of the 14 daily peak EV utilisations within 300 m. The main demand signal |
+| `charging_urgency` | Mean of the 14 daily peak EV utilisations within 300 m. The extended dataset's main demand signal |
 | `resident_share` | Resident population term for the carpark |
 | `lot_share` | Parking capacity term for the carpark |
 | EV adoption proxy | Built without the national EV share term, which is the same for every carpark and so adds nothing to a ranking |
@@ -162,9 +184,10 @@ are in the data dictionary.
 ### 3.4 Validation
 
 Ranking planning areas by mean `charging_urgency` puts **Punggol (79.9)**,
-**Sengkang (76.6)** and **Tengah (72.5)** at the top. Those are the three ground-truth
-towns in the team deck. The dataset recovers
-them from raw utilisation alone, which was the main sign the joins and
+**Sengkang (76.6)** and **Tengah (72.5)** at the top. The final report, using
+overnight utilisation on the team data model, found the busiest towns to be
+Punggol, Sengkang, Tengah and Pasir Ris. Two different measures on two
+different builds agreeing on the same towns was the main sign the joins and
 derived columns were working.
 
 Other checks run during the build:
@@ -194,7 +217,7 @@ needed.
 **Carpark_Summary, +57 columns per carpark:** match audit, 14-day profiles and
 car–EV correlation, suspect faulty stations, census and verified population,
 HDB blocks within 300/500 m, resale prices and `house_value_weight`, LTA
-register counts, connector price and power, and the MCDA inputs.
+register counts, connector price and power, and the proposal's scoring inputs.
 
 All new columns were appended at the right with teal headers, so every
 existing column letter stayed where it was and QA_Checks kept working. The
@@ -203,7 +226,7 @@ them. A flat CSV version is 193,120 rows (2,272 × 85) × 98 columns.
 
 ## 5. The lean dataset
 
-327 columns is too many to score or cluster sensibly. Columns were removed in
+327 columns is too many to cluster sensibly. Columns were removed in
 this order, and each removal is logged in the `column_selection` sheet:
 
 | Rule | Removed |
@@ -219,10 +242,11 @@ The kept columns cover: ids and time, location, carpark capacity, the two
 targets (`occupancy_pct`, `ev300_utilisation_pct`), observed demand
 (`charging_urgency` and the 14-day profiles), residents and housing value,
 commercial density, existing EV supply, a grid-load proxy (installed kW and
-maximum connector power), tariff, the faulty-station flag and the MCDA inputs.
+maximum connector power), tariff, the faulty-station flag and the proposal's
+scoring inputs.
 
 `carpark_model_table` collapses this to one row per carpark (1,984 × 54) for
-TOPSIS and K-means. Features should be standardised before clustering, so
+clustering. Features should be standardised before clustering, so
 large-scale columns such as installed kW do not dominate.
 
 ## 6. Data quality
