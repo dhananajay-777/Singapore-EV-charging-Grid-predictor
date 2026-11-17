@@ -1,260 +1,103 @@
-# Singapore EV charging site selection: data collection
+# Singapore EV Charging Grid Predictor
 
-Two scripts. One samples the live feeds every hour, the other rebuilds the
-workbooks once a day. Everything else here is setup.
+Where should Singapore add public EV chargers, and how many? This project
+answers that carpark by carpark, using live charger and carpark data I
+collected over 34 days and joined with population, housing and existing
+charger supply.
 
-## About this repository
+It is the data layer of the **Spatial EV Charging Priority Model**, a team
+project (Vector Analytics) for the NUS MTech in Enterprise Business Analytics.
+I led data acquisition, governance and dataset creation, and co-led the
+Power BI dashboard.
 
-Data layer of the **Spatial EV Charging Priority Model** (team Vector
-Analytics, NUS MTech Enterprise Business Analytics), which asks where
-Singapore should add public EV chargers and how many, carpark by carpark.
+![Charging urgency by planning area](docs/figures/urgency_by_area.png)
 
-Data acquisition, governance and dataset creation were done by
-**Dhananajay**:
+## Results
 
-- live collection of every LTA EV connector and HDB carpark, 173 samples over
-  34 days (11 Sep – 14 Oct 2026), run on GitHub Actions;
-- the charger-to-carpark join pipeline and 11 data-quality checks on every
-  sample;
-- the modelling dataset: 1,984 carparks × 85 samples × 327 columns, cut to a
-  lean 69-column version and a one-row-per-carpark table for TOPSIS and
-  K-means;
-- 63 columns added to the team's Base_Table workbook without breaking its
-  QA formulas.
+- **Punggol and Sengkang run hottest.** Across all 34 days, their public
+  chargers average a daily peak of 77% utilisation, well ahead of every other
+  town. Tengah, a new town with only 8 stations, is already in the top four.
+  The carpark-level model in the team submission ranked the same three towns
+  first (Punggol 79.9, Sengkang 76.6, Tengah 72.5).
+- **Charging is overnight.** Utilisation peaks between midnight and 5 a.m. at
+  about 34% and drops to around 20% in the late afternoon, which points to
+  residents charging at home carparks rather than daytime visitors.
+- **EV use follows car occupancy.** Across the 173 samples the two correlate
+  at 0.85 (0.95 on the hourly profile), so a carpark's occupancy pattern is a
+  reasonable first guess at EV demand where no charger exists yet.
+- **Busy is not the same as broken.** A rule that flags connectors unavailable
+  in more than 95% of samples over 14 days, overnight included, stopped dead
+  chargers from looking like the most popular ones.
 
-| Document | What it covers |
+![Demand by hour of day](docs/figures/hourly_profile.png)
+
+![Network-wide demand over the collection period](docs/figures/daily_demand.png)
+
+## What I built
+
+```mermaid
+flowchart LR
+    A[LTA DataMall<br/>EV connector status] --> L[Logger<br/>GitHub Actions, 4–7×/day]
+    B[data.gov.sg<br/>HDB carpark availability] --> L
+    L --> S[(Fact / dimension CSVs<br/>+ raw JSON audit trail)]
+    S --> P[Join pipeline<br/>chargers ↔ carparks at 150 / 300 m]
+    C[Population, HDB property,<br/>resale prices, LTA register,<br/>URA subzones] --> D
+    P --> D[Modelling dataset<br/>1,984 carparks × 327 columns]
+    D --> E[Lean dataset<br/>69 columns · 1,984-row model table]
+    E --> M[Team MCDA, TOPSIS,<br/>K-means, Power BI]
+```
+
+| Piece | What it does |
 |---|---|
-| [docs/MY_CONTRIBUTION.md](docs/MY_CONTRIBUTION.md) | What I built, and the decisions behind it |
-| [docs/DATASET_CREATION.md](docs/DATASET_CREATION.md) | Step by step: sources, joins, enrichment, column selection, validation |
-| [docs/V2.md](docs/V2.md) | V2, in progress: the same model rebuilt on twice the data |
+| `sg_utilisation_logger.py` | Samples every EV connector (11,400+) and every HDB carpark (2,000+), runs 11 quality checks, stores the result |
+| `sg_ev_carpark_pipeline.py` | Matches chargers to carparks, adds six data.gov.sg context layers, writes seven workbooks |
+| `.github/workflows/` | Ran collection on GitHub so the small hours were never missed |
+| `data/` | The full archive: 173 samples, 1.99 M connector-status rows, 209 raw API snapshots per feed |
+| `analysis/make_figures.py` | Rebuilds the charts above from `data/` |
 
-## Start here
+The modelling dataset (168,526 rows × 327 columns, then cut to 69) is
+described step by step in [docs/DATASET_CREATION.md](docs/DATASET_CREATION.md).
 
-| If you want to | Read |
+## Engineering decisions
+
+- **Fact/dimension split.** Writing every connector's full details every hour
+  would have been 2 GB a month. Storing only id, status and time hourly, with
+  descriptions once a day, cut it to about 70 MB with nothing lost.
+- **Raw JSON kept for every sample.** Any CSV, or any new derived column, can
+  be rebuilt from source across the full history (`run_local.py --replay`).
+- **No API key in code, ever.** The key comes from a GitHub secret or a
+  gitignored file, and a pre-commit hook blocks anything key-shaped.
+- **Failures are loud and safe.** Atomic file writes, schema-change detection,
+  back-off on rate limits, and a run that aborts rather than saving an empty
+  sample.
+
+## Tech
+
+Python (pandas, requests, openpyxl, matplotlib), GitHub Actions, REST APIs
+(LTA DataMall, data.gov.sg), geospatial joins (haversine, point-in-polygon,
+SVY21 → WGS84), Excel, Power BI.
+
+## Repository map
+
+| Path | Contents |
 |---|---|
-| Build the workbook on this PC, now | `python run_local.py`, and the next section |
-| Run collection on GitHub so your laptop can be shut | `GITHUB_SETUP.md` |
-| Run it on your own PC | `SCHEDULING.md`, then `setup_windows_tasks.ps1` |
-| Understand what gets collected and why | the rest of this file |
+| [docs/MY_CONTRIBUTION.md](docs/MY_CONTRIBUTION.md) | My part of the team project, in detail |
+| [docs/DATASET_CREATION.md](docs/DATASET_CREATION.md) | Sources, joins, enrichment, column selection, validation |
+| [docs/DATA_COLLECTION.md](docs/DATA_COLLECTION.md) | How the logger and pipeline work, and the edge cases they handle |
+| [docs/V2.md](docs/V2.md) | V2: the model rebuilt on the full 34 days (in progress) |
+| [docs/GITHUB_SETUP.md](docs/GITHUB_SETUP.md), [docs/SCHEDULING.md](docs/SCHEDULING.md) | Running collection on GitHub or a PC |
 
-## The two scripts
-
-**`sg_utilisation_logger.py`** — hourly. Two API calls, a few seconds. Records
-the status of every connector and the free lots in every HDB carpark, and
-appends the rows to compressed CSV.
-
-This is the only time-critical part of the project. Connector status changes
-minute to minute and there is no historical feed, so an hour not sampled is an
-hour lost for good. Everything else can be rerun.
-
-**`sg_ev_carpark_pipeline.py`** — daily. Two to three minutes. Fetches the
-chargers and carparks, pulls six reference datasets from data.gov.sg, matches
-chargers to carparks at 150 m and 300 m, and writes seven workbooks.
-
-Do not run the pipeline hourly. It would hit data.gov.sg 144 times a day for
-datasets (planning areas, hawker centres, URA parking, ACRA) that change perhaps
-once a year, which is what produced the rate-limiting errors earlier.
-
-## The everyday command
+## Reproduce
 
 ```
-python run_local.py
+pip install -r requirements.txt
+python analysis/make_figures.py          # charts, from the archived data
+python run_local.py --no-pull --no-fetch # the utilisation workbook, no API calls
 ```
 
-That is the one to remember. It pulls whatever the GitHub runs have collected,
-takes a fresh sample so the workbook includes right now, and rebuilds the
-workbook from **every sample ever taken** — GitHub's, your earlier local runs,
-and the one just taken. Run it before you sit down to analyse anything.
-
-| Flag | Effect |
-|---|---|
-| `--no-pull` | skip the git pull (offline, or no repo) |
-| `--no-fetch` | rebuild only, do not call the APIs |
-| `--history-days N` | row-level window in the workbook (default 30 locally) |
-| `--replay` | rebuild the whole CSV store from the raw JSON snapshots |
-| `--full` | also run the daily pipeline: both joins, seven workbooks |
-
-### Why the workbook is built here and not on GitHub
-
-An `.xlsx` is a zip. Git cannot diff it, so every change stores a whole new
-copy. Measured at full scale the utilisation workbook is 2 MB without
-row-level history and 9 MB with three days of it — committed hourly that runs
-to gigabytes, and GitHub starts refusing pushes long before the project ends.
-
-So the split is: **git holds the CSVs, this machine builds the workbooks.** The
-CSVs are text, they compress and diff, and a month of them is about 70 MB.
-`output/` is gitignored for the same reason a `build/` directory usually is —
-it is derived, and `run_local.py` reproduces it in seconds.
-
-It also removes a collision. GitHub's daily run and your local run would
-otherwise both write `output/utilisation/utilisation_log.xlsx`, and every
-`git pull` after a local build would stop on a binary conflict that cannot be
-merged.
-
-If you want a workbook without building one, every Actions run publishes them
-as artifacts. `GITHUB_SETUP.md` section 6.
-
-### `--replay`, and why the raw JSON is kept
-
-Every sample is saved as gzipped JSON exactly as the API returned it, under
-`data/raw/`. That is the audit trail, and `--replay` rebuilds the entire CSV
-store from it.
-
-Two things this buys you. If a CSV is ever damaged, you recover without having
-lost an hour of collection. And if you add a derived column later, you can
-recompute it across all history rather than having it start from today — the
-numbers come from source, not from a patch.
-
-Replay moves the old store aside as `data/utilisation.before-replay-<stamp>`
-rather than deleting it, and it is idempotent: running it twice gives the same
-store, not a doubled one.
-
-## Running the pieces by hand
-
-```
-python sg_utilisation_logger.py              # take one sample now
-python sg_utilisation_logger.py --status     # what has been collected so far
-python sg_utilisation_logger.py --rebuild-only   # workbook from existing CSV, no API call
-python sg_utilisation_logger.py --rebuild-only --history-days 14   # longer row-level window
-python sg_ev_carpark_pipeline.py             # all seven workbooks
-python sg_ev_carpark_pipeline.py --no-outer  # inner join only
-```
-
-The hourly script needs only `requests`. The pipeline needs `pandas` and
-`openpyxl` too, and installs them on first run; `--no-install` turns that off if
-you manage your own environment. Or install everything up front with
-`pip install -r requirements.txt`.
-
-## The key
-
-Neither script contains an API key. They look in two places, in order:
-
-1. the `LTA_KEY` environment variable
-2. `lta_key.txt` in the same folder as the script
-
-`.gitignore` excludes `lta_key.txt`, so it cannot be committed by accident.
-Copy `lta_key.txt.example` to `lta_key.txt` and paste your DataMall key in.
-`tools/pre-commit` is a hook that blocks any commit containing a key-shaped
-string, for the case where one gets pasted into a script; `GITHUB_SETUP.md`
-says how to install it.
-
-The key that was hardcoded in early local copies of these scripts (never
-committed) was replaced with a new one in November 2026. The new key lives only
-in the `LTA_KEY` repository secret and in local `lta_key.txt` files.
-
-## What comes out
-
-```
-output/
-  utilisation/utilisation_log.xlsx          hourly series, 9 sheets
-  combined/ev_carpark_combined_150m.xlsx    inner join, chargers with carparks
-  combined/ev_carpark_combined_300m.xlsx
-  outer/carpark_ev_outer_150m.xlsx          outer join, the Step 3 candidate pool
-  outer/carpark_ev_outer_300m.xlsx
-  ev_charging/ev_charging_points.xlsx       chargers only
-  carpark/carpark_availability.xlsx         carparks only
-  context/datagov_context.xlsx              the six reference datasets
-
-data/
-  utilisation/fact/    hourly rows: ids, status, counts. Small, one file per month
-  utilisation/dim/     the descriptive columns, one file per day
-  raw/ev/, raw/carpark/   gzipped API responses, the audit trail
-  reference/           cached copies of the data.gov.sg datasets
-```
-
-Filenames are stable. Each run updates the same workbook rather than leaving a
-new one, so a link or a Power BI connection keeps working.
-
-### Why the hourly data is split in two
-
-The first design wrote every column on every connector every hour. At 11,429
-connectors that is 35 MB a day and roughly 2 GB a month, and 99% of it is the
-station name and address repeated 720 times.
-
-So the hourly file carries only what actually changes — connector id, status
-code, timestamp — and the descriptive columns are written once a day to a
-separate file. Joining the two gives back the full picture. About 70 MB a month
-instead of 2 GB, with nothing lost.
-
-`Latest connectors` in the workbook is that join already done: all 23 columns
-the pipeline produces, for the most recent sample.
-
-### What accumulates and what does not
-
-This is the part that trips people up. Nothing is ever thrown away, but not
-every sheet is a time series.
-
-| Sheet | Behaviour |
-|---|---|
-| `Network history` | One row per sample, the whole period |
-| `Station history` | One row per sample per station, the last 21 days |
-| `Carpark history` | One row per sample per carpark, the last 21 days |
-| `Station daily`, `Carpark daily` | Daily averages, the whole period |
-| `Hourly profile` | Averaged by hour of day, the whole period |
-| `Data quality` | One row per check per sample, the whole period |
-| `Run history`, `Town history` (combined workbooks) | One row per run, appended |
-| `Latest connectors`, `Latest stations`, `Latest carparks` | **The most recent sample only, deliberately** |
-| `Matched stations`, `Matched connectors` | Current state, replaced each run |
-
-If a `Latest` sheet shows one moment in time, that is correct — the earlier
-samples are in `Station history` and in the daily averages. And if
-`Network history` shows two rows after two runs, that is also correct: it gains
-one row per sample, so it only looks like a series after a few dozen.
-
-Full history lives in `data/utilisation` as CSV, which has no row limit. The
-workbook carries three days at row level by default. Measured at 2,755
-stations: three days is 198k rows and 9 MB, a week is 463k rows and 21 MB, and
-a complete series passes Excel's 1,048,576-row cap in about fifteen days.
-`--history-days N` changes the window; `--history-days 0` leaves the two
-history sheets out and keeps the file near 2 MB.
-
-## Data integrity
-
-Both scripts run checks and write the results to a **Data quality** sheet, and
-to `data/utilisation/quality.csv`. Worth knowing about the ones that fire:
-
-- **`carparks_have_coordinates`** warns: eight HDB carparks have no coordinates
-  in the source data, so they cannot be matched to a charger. Genuine gap.
-- **`available_not_over_capacity`** warns occasionally: a carpark reports more
-  free lots than it has. A feed error, not ours.
-
-Everything else should read `ok`. The ones worth watching:
-
-- **conservation** on the joins. `1858 + 422 against 2280 carparks` means every
-  carpark ended up either matched or unmatched, none lost, none duplicated. If
-  that ever fails, the join is wrong and the numbers downstream are wrong.
-- **`matches_within_threshold`**. The furthest 150 m match should be under
-  150 m. Currently 147.2 m.
-- **coordinate bounds**. Anything outside Singapore's bounding box is dropped
-  and counted rather than silently mapped into the sea.
-
-## Edge cases the scripts handle
-
-Learned mostly by hitting them:
-
-| Situation | What happens |
-|---|---|
-| The workbook is open in Excel | Detected before the three-minute fetch, not after. Falls back to a stamped filename rather than crashing |
-| A run is killed midway | Files are written to a temp name and moved into place, so a partial file never replaces a good one |
-| data.gov.sg returns 429 | Backs off, honours `Retry-After`, falls back to the cached copy |
-| The LTA feed returns nothing | Run aborts before touching any output. An empty sample is worse than a missing one |
-| A CSV gets corrupted | Set aside as `.corrupt-<stamp>` and collection continues rather than stopping |
-| A feed adds a column | Old file set aside as `.schema-<stamp>`, new one started, both readable |
-| Two runs overlap | The GitHub `concurrency` group and Task Scheduler's `IgnoreNew` both prevent it |
-| A postal code starts with 0 | Kept as text throughout. It is the join key |
-
-## After 48 hours, check this
-
-```
-python sg_utilisation_logger.py --status
-```
-
-Look at `overnight hours seen:`. It must include 02, 03, 04 and 05.
-
-The fault-detection rule — a connector unavailable in more than 95% of sampled
-hours across 14 days, including the small hours, is broken rather than busy —
-only works if those hours are in the data. On GitHub they always are. On a
-laptop they are exactly the hours it is asleep.
+Collection ran from 11 Sep to 15 Oct 2026 and has ended; the workflows are
+disabled. Collecting again needs a free LTA DataMall key: copy
+`lta_key.txt.example` to `lta_key.txt` and paste it in.
 
 ## Data sources and licence
 
@@ -264,3 +107,5 @@ HDB resale flat prices, the Census of Population 2020 and URA Master Plan
 subzone boundaries, accessed between September and November 2026 from
 datamall.lta.gov.sg and data.gov.sg, which are made available under the terms
 of the [Singapore Open Data Licence version 1.0](https://data.gov.sg/open-data-licence).
+
+Code is under the MIT licence (see `LICENSE`).
