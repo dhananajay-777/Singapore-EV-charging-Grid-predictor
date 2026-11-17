@@ -190,7 +190,7 @@ timestamp. It would not be fine if you needed exact hourly spacing.
 - **Collect hourly**, newest run, **Artifacts** → `utilisation-latest`. The
   utilisation workbook as of that hour. Replaced every hour.
 - **Build workbooks daily**, newest run, **Artifacts** → `workbooks`. A zip of
-  all seven `.xlsx` files, kept 30 days.
+  all seven `.xlsx` files, kept 7 days.
 
 **Option B: build it yourself, with everything.** On your PC, in the project
 folder:

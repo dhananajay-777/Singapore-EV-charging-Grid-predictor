@@ -3,6 +3,31 @@
 Two scripts. One samples the live feeds every hour, the other rebuilds the
 workbooks once a day. Everything else here is setup.
 
+## About this repository
+
+Data layer of the **Spatial EV Charging Priority Model** (team Vector
+Analytics, NUS MTech Enterprise Business Analytics), which asks where
+Singapore should add public EV chargers and how many, carpark by carpark.
+
+Data acquisition, governance and dataset creation were done by
+**Dhananajay**:
+
+- live collection of every LTA EV connector and HDB carpark, 173 samples over
+  34 days (11 Sep – 14 Oct 2026), run on GitHub Actions;
+- the charger-to-carpark join pipeline and 11 data-quality checks on every
+  sample;
+- the modelling dataset: 1,984 carparks × 85 samples × 327 columns, cut to a
+  lean 69-column version and a one-row-per-carpark table for TOPSIS and
+  K-means;
+- 63 columns added to the team's Base_Table workbook without breaking its
+  QA formulas.
+
+| Document | What it covers |
+|---|---|
+| [docs/MY_CONTRIBUTION.md](docs/MY_CONTRIBUTION.md) | What I built, and the decisions behind it |
+| [docs/DATASET_CREATION.md](docs/DATASET_CREATION.md) | Step by step: sources, joins, enrichment, column selection, validation |
+| [docs/V2.md](docs/V2.md) | V2, in progress: the same model rebuilt on twice the data |
+
 ## Start here
 
 | If you want to | Read |
