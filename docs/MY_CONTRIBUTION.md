@@ -2,7 +2,7 @@
 
 **Dhananjay**: data acquisition and governance lead, and Power BI dashboard
 co-lead, for *Data-Driven Spatial Priority Modelling for Public EV Charging
-Infrastructure in Singapore* (team Vector Analytics, EBA 5011, NUS MTech EBA).
+Infrastructure in Singapore* (team Vector Analytics, NUS MTech EBA).
 
 The project asks where Singapore should add public EV chargers, at the level
 of an HDB carpark. Demand is measured directly: the share of charging
@@ -13,7 +13,6 @@ part.
 
 ## My role in the project
 
-From the workload table in the final report:
 
 | Stage | My role |
 |---|---|
@@ -22,7 +21,7 @@ From the workload table in the final report:
 | Problem framing and objectives | Contributor |
 | Modelling and analysis | Contributor |
 | Shortlist and recommendations | Contributor |
-| Report and presentation | Contributor |
+| Write-up and presentation | Contributor |
 
 Every member worked on every stage; each stage had a lead who owned the
 quality of its output.
@@ -46,8 +45,7 @@ Everything in this repository's code is my work.
 
 ## The stage I led: data acquisition and governance
 
-The final report's data chapter describes what this stage delivered. I led
-it; teammates contributed to each part, and stewardship of the data
+What this stage delivered. I led it; teammates contributed to each part, and stewardship of the data
 dictionary, quality checks and logging schedule was shared across the team.
 
 - **Eight open datasets in one carpark-level model.** A fact table of
@@ -71,8 +69,8 @@ dictionary, quality checks and logging schedule was shared across the team.
 
 | | |
 |---|---|
-| Period | 11 Sep – 14 Oct 2026 (34 days); the report uses 11–24 Sep |
-| Samples | 173 network snapshots (85 in the report window) |
+| Period | 11 Sep – 14 Oct 2026 (34 days); the team analysis uses 11–24 Sep |
+| Samples | 173 network snapshots (85 in the 14-day analysis window) |
 | EV connectors tracked | 11,429 → 11,698 over the period (2,755 → 2,799 stations) |
 | HDB carparks tracked | 2,007 in the availability feed |
 | Connector status rows | 1.99 million |
@@ -97,7 +95,7 @@ not patched from today onward.
 
 ## The rest of the project
 
-The analysis in the final report (hypothesis tests, regression with town
+The team analysis (hypothesis tests, regression with town
 effects, K-means priority tiers, a decision-tree screening rule and a
 20-carpark pilot shortlist) was team work, run on the carpark-level model
 described above. I contributed to each of those stages; the analysis code is
