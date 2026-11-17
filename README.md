@@ -5,9 +5,8 @@ carpark by how busy the chargers around it are overnight, using live charger
 and carpark data logged from the LTA and HDB feeds.
 
 It is the data layer of **Data-Driven Spatial Priority Modelling for Public EV
-Charging Infrastructure in Singapore**, a team project (Vector Analytics) for
-EBA 5011, the Practice Module in Analytics for Business Decisions, in the NUS
-MTech in Enterprise Business Analytics.
+Charging Infrastructure in Singapore**, a team project (Vector Analytics)
+built during the NUS MTech in Enterprise Business Analytics.
 
 ![Power BI dashboard, Overview page](docs/figures/powerbi_overview.png)
 
@@ -18,13 +17,13 @@ carparks come first, and screening of new sites.*
 
 ## My part
 
-The final report's workload table records my role as:
+My role in the team project:
 
 | Stage | My role |
 |---|---|
 | Data acquisition and governance | **Lead** |
 | Data understanding, charts and Power BI dashboards | **Co-lead** |
-| Problem framing, modelling, shortlist, report and presentation | Contributor |
+| Problem framing, modelling, shortlisting and write-up | Contributor |
 
 What that meant in practice:
 
@@ -48,7 +47,7 @@ What that meant in practice:
 
 ## Project findings
 
-From the final report, on 2,259 HDB carparks with a charger within 300 m:
+From the team analysis of 2,259 HDB carparks with a charger within 300 m:
 
 - **Overnight is the peak.** Chargers near HDB carparks are 42.7% busy
   between midnight and 6 a.m., against 25.9% in the evening (paired t-test,
@@ -70,14 +69,14 @@ From the final report, on 2,259 HDB carparks with a charger within 300 m:
 
 ## My extension: all 34 days
 
-The report used 14 days. These charts use everything I logged, rebuilt with
+The team analysis used 14 days. These charts use everything I logged, rebuilt with
 `analysis/make_figures.py`.
 
 ![Charging urgency by planning area](docs/figures/urgency_by_area.png)
 
 Over 34 days, Punggol and Sengkang chargers average a daily peak of 77%,
 ahead of every other planning area. The four busiest areas are the same four
-towns the report found busiest overnight: Punggol, Sengkang, Tengah and
+towns the team analysis found busiest overnight: Punggol, Sengkang, Tengah and
 Pasir Ris.
 
 ![Demand by hour of day](docs/figures/hourly_profile.png)
