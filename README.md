@@ -33,6 +33,17 @@ Power BI dashboard.
 
 ![Network-wide demand over the collection period](docs/figures/daily_demand.png)
 
+## Dashboard
+
+![Power BI dashboard, Overview page](docs/figures/powerbi_overview.png)
+
+The team's Power BI dashboard, which I co-led. The Overview page puts every
+URA subzone into one of four priority tiers (from K-means on overnight
+utilisation, charger supply and nearby homes), and flags 580 HDB carparks as
+priority sites. Overnight utilisation is highest in the North-East, at 52.6%.
+Other pages cover when and where demand peaks, what drives it, which carparks
+come first, and screening of new sites.
+
 ## What I built
 
 ```mermaid
